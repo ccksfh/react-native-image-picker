@@ -54,6 +54,72 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
     });
 }
 
+- (void)qb_imagePickerController:
+(QBImagePickerController *)imagePickerController
+          didFinishPickingAssets:(NSArray *)assets {
+
+    if (assets.count == 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.callback(@[@{@"didCancel": @YES}]);
+        });
+        return;
+    }
+
+    NSMutableArray<NSDictionary *> *results = [[NSMutableArray alloc] initWithCapacity:assets.count];
+    
+    PHImageManager *manager = [PHImageManager defaultManager];
+    PHImageRequestOptions* options = [[PHImageRequestOptions alloc] init];
+    options.synchronous = NO;
+    options.networkAccessAllowed = YES;
+
+    NSLock *lock = [[NSLock alloc] init];
+    __block int processed = 0;
+
+    for (PHAsset *phAsset in assets) {
+        [manager
+         requestImageDataForAsset:phAsset
+         options:options
+         resultHandler:^(NSData *imageData, NSString *dataUTI, UIImageOrientation orientation, NSDictionary *info) {
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [lock lock];
+                @autoreleasepool {
+                    UIImage *imgT = [UIImage imageWithData:imageData];
+
+                    [results addObject:[self mapImageToAsset:imgT data:imageData phAsset:phAsset]];
+                }
+                processed++;
+                [lock unlock];
+                
+                if (processed == [assets count]) {
+                    [imagePickerController dismissViewControllerAnimated:YES completion:^{
+                        //  mapVideoToAsset can fail and return nil.
+                        for (NSDictionary *result in results) {
+                            if (nil == results) {
+                                self.callback(@[@{@"errorCode": errOthers}]);
+                                return;
+                            }
+                        }
+
+                        NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+                        [response setObject:results forKey:@"assets"];
+
+                        self.callback(@[response]);
+                    }];
+                    return;
+                }
+            });
+        }];
+    }
+
+}
+
+- (void)qb_imagePickerControllerDidCancel:(QBImagePickerController *)imagePickerController {
+    [imagePickerController dismissViewControllerAnimated:YES completion:^{
+        self.callback(@[@{@"didCancel": @YES}]);
+    }];
+}
+
 - (void)launchImagePicker:(NSDictionary *)options callback:(RCTResponseSenderBlock)callback
 {
     self.callback = callback;
@@ -68,25 +134,57 @@ RCT_EXPORT_METHOD(launchImageLibrary:(NSDictionary *)options callback:(RCTRespon
 #if __has_include(<PhotosUI/PHPicker.h>)
     if (@available(iOS 14, *)) {
         if (target == library) {
-            PHPickerConfiguration *configuration = [ImagePickerUtils makeConfigurationFromOptions:options target:target];
-            PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
-            picker.delegate = self;
-            picker.modalPresentationStyle = [RCTConvert UIModalPresentationStyle:options[@"presentationStyle"]];
-            picker.presentationController.delegate = self;
+            [PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelReadWrite handler:^(PHAuthorizationStatus status) {
+                switch (status) {
+                    case PHAuthorizationStatusLimited:
+                    {
+                        //用户选择"允许访问部分照片"，调用QBPickerViewController显示受限的图片选择器
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            QBImagePickerController *qbpicker = [QBImagePickerController new];
+                            qbpicker.delegate = self;
+                            qbpicker.allowsMultipleSelection = NO;
+                            qbpicker.showsNumberOfSelectedAssets = YES;
+                            qbpicker.sortOrder = @"asc";
 
-            if([self.options[@"includeExtra"] boolValue]) {
-                
-                [self checkPhotosPermissions:^(BOOL granted) {
-                    if (!granted) {
-                        self.callback(@[@{@"errorCode": errPermission}]);
-                        return;
+                            qbpicker.assetCollectionSubtypes = @[
+                                        @(PHAssetCollectionSubtypeSmartAlbumUserLibrary)
+                                    ];
+                            qbpicker.mediaType = QBImagePickerMediaTypeImage;
+                            [qbpicker setModalPresentationStyle: UIModalPresentationFullScreen];
+                            UIViewController *root = RCTPresentedViewController();
+                            [root presentViewController:qbpicker animated:YES completion:nil];
+                        });
+                        break;
                     }
-                    [self showPickerViewController:picker];
-                }];
-            } else {
-                [self showPickerViewController:picker];
-            }
-            
+                    case PHAuthorizationStatusAuthorized:
+                    {
+                        //用户选择"允许访问所有照片"，调用PHPickerViewController显示图片选择器
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            PHPickerConfiguration *configuration = [ImagePickerUtils makeConfigurationFromOptions:options target:target];
+                            PHPickerViewController *picker = [[PHPickerViewController alloc] initWithConfiguration:configuration];
+                            picker.delegate = self;
+                            picker.presentationController.delegate = self;
+
+                            if([self.options[@"includeExtra"] boolValue]) {
+                                
+                                [self checkPhotosPermissions:^(BOOL granted) {
+                                    if (!granted) {
+                                        self.callback(@[@{@"errorCode": errPermission}]);
+                                        return;
+                                    }
+                                    [self showPickerViewController:picker];
+                                }];
+                            } else {
+                                [self showPickerViewController:picker];
+                            }
+                        });  
+                    }
+                        break;
+                    default:
+                        break;
+                }
+            }];
+
             return;
         }
     }

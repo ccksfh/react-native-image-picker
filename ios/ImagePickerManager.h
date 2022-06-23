@@ -1,6 +1,7 @@
 #import <React/RCTBridgeModule.h>
 #import <UIKit/UIKit.h>
 #import <React/RCTConvert.h>
+#import <QBImagePicker/QBImagePicker.h> // app在主工程自己引入的
 
 typedef NS_ENUM(NSInteger, RNImagePickerTarget) {
   camera = 1,
