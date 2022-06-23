@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		014A3B6A1C6CF34500B6D375 /* ImagePickerManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 014A3B691C6CF34500B6D375 /* ImagePickerManager.m */; };
 		58177DE0286410FF0032C3F1 /* ImagePickerUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = C1D0CF212509FD5E00304E19 /* ImagePickerUtils.m */; };
+		58177F692864718D0032C3F1 /* QBImagePicker.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 58177E5128645CB40032C3F1 /* QBImagePicker.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +36,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				58177F692864718D0032C3F1 /* QBImagePicker.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
