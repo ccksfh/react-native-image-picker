@@ -1,3 +1,6 @@
+# 4.8.4.1
+支持RN <0.60.0 集成 + ios14 launchImagePicker时先判断权限-limit时调QBImagePicker来展示用户选择的照片
+
 # React Native Image Picker
 
 A React Native module that allows you to select a photo/video from the device library or camera.
